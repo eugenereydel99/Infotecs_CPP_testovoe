@@ -1,55 +1,95 @@
 #ifndef TASK_CLIENT_H
 #define TASK_CLIENT_H
 
-#include <vector>
-#include <semaphore.h>
-#include <arpa/inet.h>
-#include <string>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 #include <fstream>
+#include <iostream>
+#include <algorithm>
+#include <cstring>
+#include <arpa/inet.h>
+#include <unistd.h>
 
 class Client {
-private:
-
-    std::fstream buffer;
-
-    std::string input;
-    pthread_cond_t cond;
-    pthread_mutex_t mutex;
-    sem_t semaphore;
-
-    pthread_t thread[2];
-
-    int resultFromThread2 = -1; // сумма чисел
-
-    int                 sockfd, n;
-    struct sockaddr_in  addr;
-    char                recvline[128];
-    char                sendline[128];
-
-    void thread1();
-    static void *thread1Wrapper(void *);
-
-    void thread2();
-    static void *thread2Wrapper(void *);
-
-    void inputString();
-
-    void replaceEven();
-
-    void writeToBuffer();
-
-    std::string readFromBuffer();
-
-    void sumDigits(const std::string &data);
-
-    void sendToServer();
-
 public:
+
     Client();
 
     ~Client();
 
     void run();
+
+private:
+
+    /* Файловый дескриптор сокета */
+    int sockfd;
+
+    /* Структура адреса клиентского сокета */
+    struct sockaddr_in addr;
+
+    /*
+     * Массив элементов для отправки в программу №2.
+     * Размер массива определяется из условия, что
+     * все введенные пользователем числа будут четными.
+     * */
+    char sendline[128];
+
+    std::condition_variable cond_v;
+    std::mutex mtx;
+
+    /*
+     *    ---------- Поток №1 ----------
+     * 1) Принимает строку, которую введет пользователь.
+     * 2) Должна быть проверка, что строка состоит только из цифр и не превышает 64 символа.
+     * 3) После проверки строка должна быть отсортирована по убыванию и все четные элементы заменены на латинские буквы «КВ».
+     * 4) После данная строка помещается в общий буфер и поток должен ожидать дальнейшего ввода пользователя.
+     * */
+    void thread1();
+    static void *thread1Wrapper(void *);
+
+    /*
+     *    ---------- Поток №2 ----------
+     * 1) Должен обрабатывать данные которые помещаются в общий буфер.
+     * 2) После получения данных общий буфер затирается.
+     * 3) Поток должен вывести полученные данные на экран, рассчитать общую сумму всех, которые являются численными значениями.
+     * 4) Полученную сумму передать в Программу №2. После этого поток ожидает следующие данные.
+     * */
+    void thread2();
+    static void *thread2Wrapper(void *);
+
+    /* Общий буфер */
+    std::fstream buffer;
+
+    /* Вводимая пользователем строка */
+    std::string input;
+
+    /* Результат работы потока №2 */
+    int result;
+
+    /* Ввод строки пользователем */
+    void inputString();
+
+    /* Проверка, что введенная строка состоит только из цифр и не превышает 64 символа */
+    void checkString();
+
+    /* Сортировка строки в порядке убывания */
+    void sortByDesc();
+
+    /* Замена всех четных элементов строки на латинские буквы 'KB' */
+    void replaceEven();
+
+    /* Запись строки в общий буфер */
+    void writeToBuffer();
+
+    /* Чтение строки из общего буфера */
+    std::string readFromBuffer();
+
+    /* Суммирование всех численных значений в строке */
+    void sumDigits();
+
+    /* Отправка суммы чисел в программу №2 */
+    void sendToServer();
 
 };
 
